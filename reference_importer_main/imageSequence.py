@@ -6,8 +6,10 @@ import platform
 from pathlib import Path
 
 TIMECODE_REGEX = r"Duration: (\d{2}:\d{2}:\d{2}.\d)"
-DIMENSIONS_REGEX = r"Video.*[ ,](\d+)x(\d+),"
-DIMENSIONS_SAR_DAR_REGEX = r"(\d+)x(\d+) \[SAR (\d+):(\d+) DAR (\d+):(\d+)\]"
+DIMENSIONS_SIZE_REGEX = r"Video.*[ ,](\d+)x(\d+)(,| \[)"
+DIMENSIONS_SAR_REGEX = r"Video.*SAR (\d+):(\d+)"
+DIMENSIONS_DAR_REGEX = r"Video.*DAR (\d+):(\d+)"
+ROTATION_90_REGEX = r"displaymatrix.*90.*degrees"
 
 class FfmpegError(Exception):
     ...
@@ -128,13 +130,8 @@ class ImageSequencer:
             _except_msg: str = "Unable to get ffmpeg output"
             raise FfmpegError(_except_msg) from e
 
-        with_sar_dar: bool = True
         # re.search searches across the whole string (multiline output).
-        match: re.Match | None = re.search(DIMENSIONS_SAR_DAR_REGEX, output)
-
-        if not match:
-            with_sar_dar = False
-            match: re.Match | None = re.search(DIMENSIONS_REGEX, output)
+        match: re.Match | None = re.search(DIMENSIONS_SIZE_REGEX, output)
 
         if not match:
             _except_msg: str = f"Unable to find Dimensions for video {video_file}"
@@ -143,10 +140,19 @@ class ImageSequencer:
         dimensions = Dimensions()
         dimensions.w = int(match.groups(0)[0])
         dimensions.h = int(match.groups(0)[1])
-        dimensions.sar_w = int(match.groups(0)[2]) if with_sar_dar else 1
-        dimensions.sar_h = int(match.groups(0)[3]) if with_sar_dar else 1
-        dimensions.dar_w = int(match.groups(0)[4]) if with_sar_dar else 1
-        dimensions.dar_h = int(match.groups(0)[5]) if with_sar_dar else 1
+
+        match: re.Match | None = re.search(DIMENSIONS_SAR_REGEX, output)
+        dimensions.sar_w = int(match.groups(0)[0]) if match else 1
+        dimensions.sar_h = int(match.groups(0)[1]) if match else 1
+
+        match: re.Match | None = re.search(DIMENSIONS_DAR_REGEX, output)
+        dimensions.dar_w = int(match.groups(0)[0]) if match else 1
+        dimensions.dar_h = int(match.groups(0)[1]) if match else 1
+
+        # Revert w and h if we find rotation information
+        match: re.Match | None = re.search(ROTATION_90_REGEX, output)
+        if match:
+            dimensions.w, dimensions.h = dimensions.h, dimensions.w
 
         return dimensions
 
