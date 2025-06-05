@@ -149,7 +149,7 @@ class ImageSequencer:
         dimensions.dar_w = int(match.groups(0)[0]) if match else 1
         dimensions.dar_h = int(match.groups(0)[1]) if match else 1
 
-        # Revert w and h if we find rotation information
+        # Swap w and h if we find rotation information
         match: re.Match | None = re.search(ROTATION_90_REGEX, output)
         if match:
             dimensions.w, dimensions.h = dimensions.h, dimensions.w
